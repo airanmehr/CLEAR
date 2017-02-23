@@ -9,6 +9,6 @@ CLEAR is written in python which uses `numba` and `pandas` packages.You can inst
 `conda install pandas numba`
 
 ##Running
-To obtain and run CLEAR simply execute
+To obtain  CLEAR simply execute
 
-`git clone https://github.com/bafnalab/CLEAR && cd CLEAR && python demo.py`
+`git clone --recursive git@github.com:airanmehr/CLEAR.git`
