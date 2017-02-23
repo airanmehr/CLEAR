@@ -11,4 +11,4 @@ CLEAR is written in python which uses `numba` and `pandas` packages.You can inst
 ##Running
 To obtain  CLEAR simply execute
 
-`git clone --recursive git@github.com:airanmehr/CLEAR.git`
+`git clone --recursive https://github.com/airanmehr/CLEAR.git`
