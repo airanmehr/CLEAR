@@ -250,6 +250,7 @@ class HMM:
 
     def fit(self,save):
         df=pd.concat(map(self.fitOne,self.gridH),1,keys=self.gridH)
+        df.columns.names=['h','stat']
         if save:
             if self.CDfname is None:
                 fname=self.path+ 'HMM.df'
