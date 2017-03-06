@@ -205,8 +205,9 @@ class HMM:
         CD, E, T, powers = args
         likes = pd.Series(0, index=CD.index)
         n=0
+        startGen=CD.columns.get_level_values('GEN').min()
         for rep, df in CD.T.groupby(level=0):
-            alpha = E.iloc[df.loc[(rep, 0)]].values
+            alpha = E.iloc[df.loc[(rep, startGen)]].values
             for step, power in zip(range(1, df.shape[0]), powers[rep]):
                 alpha = alpha.dot(T.loc[power].values) * E.values[df.loc[rep].iloc[step].values]
             likes += utl.vectorizedLog(alpha.mean(1)) #it should be here
