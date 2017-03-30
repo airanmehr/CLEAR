@@ -128,9 +128,10 @@ class Binomial:
 class HMM:
     def __init__(self, eps=1e-1, CD=None, CDfname=None, path=None, verbose=1,
                  N=None, n=None, Ns=None,
-                 gridH=[0.5,5], stepS=0.05,maxS=1,
+                 gridH=[0.5,5],stepS=0.05, nSteps=20,maxS=1,
                  loadCDE=False,saveCDE=False,transitionsPath=None,batchSize=int(2e5),
                  precomputeTransitions=False,filterOutlierReplicate=0):
+
         if path is not None:utl.mkdir(path)
         self.CDfname=CDfname
         if CDfname is not None: self._CD=pd.read_pickle(self.CDfname);
@@ -138,7 +139,7 @@ class HMM:
         self.filterOutlierReplicate=filterOutlierReplicate
         self.batchSize=batchSize
         self.path,self.gridH,self.stepS,self.eps,self.verbose=path,gridH,stepS,eps,verbose
-        self.n=n;self.N=N;self.transitionsPath=transitionsPath;self.Ns=Ns;self.maxS=maxS
+        self.n=n;self.N=N;self.transitionsPath=transitionsPath;self.Ns=Ns;self.maxS=maxS;self.nSteps=nSteps
         if self.n is None: self.n=self.N
         if self.Ns is None: self.Ns=self.n
         if self.CDfname is None:
@@ -151,14 +152,31 @@ class HMM:
             self.CD,self.E=HMM.precomputeCDandEmissions(CD=self._CD, n=self.Ns, N=self.n,path=path,loadCDE=loadCDE,saveCDE=saveCDE ,verbose=self.verbose)
         R=self._CD.columns.get_level_values('REP').unique()
         self.powers = pd.Series([pd.Series(self._CD[r].columns.get_level_values('GEN').unique()).diff().values[1:] for r in R],index=R)
-
+        self.setStepS()
         if self.transitionsPath is None:
             if self.path is not None:
                 self.transitionsPath=self.path+'T/';utl.mkdir(self.transitionsPath)
         if precomputeTransitions:
             self.computeTransitions()
 
+    def setStepS(self):
+        if self.maxS is None:
+            self.maxS=self.findMaxS()
+            self.stepS=self.maxS/self.nSteps
+        elif self.stepS is None:
+            self.stepS=self.maxS/self.nSteps
 
+    def findMaxS(self):
+        freq=lambda x: x.xs('C',level='READ',axis=1).sum(1)/x.xs('D',level='READ',axis=1).sum(1)
+        x=self._CD.groupby( level='GEN',axis=1).apply(lambda x: freq(x)).sort_index(1)
+        x[(x==1)|(x==0)]=None; x=x.dropna()
+        s= (2./(x.columns[-1]-x.columns[0])*(utl.logit(x.iloc[:,-1])-utl.logit(x.iloc[:,0])).abs().replace(np.inf,None).dropna()).max()
+        s='{:e}'.format(s)
+        try:
+            s=(int(s.split('.')[0])+1)*10**(-int(s.split('-')[1]))
+        except:
+            s=(int(s.split('.')[0])+1)*10**(int(s.split('+')[1]))
+        return s
     def likelihood(self,s,CD):
         """
         Args: (it's more convenient for multiprocessing)
@@ -249,6 +267,17 @@ class HMM:
     def fitN(self,rangeN=np.arange(1,15,1)*100,n=1000):
         return pd.concat(map(lambda x: self.likelihoodN(x,n),rangeN),1,keys=rangeN)
 
+    def fitNLineSearch(self,rangeN=np.arange(1,15,1)*100,n=1000):
+        likes=pd.Series(None)
+        prev=-1e10
+        for N in rangeN:
+            likes.loc[N]=self.likelihoodN(N,n).mean()
+            if likes.loc[N]<prev:
+                return likes
+            prev=likes.loc[N]
+        return likes
+
+
     def fit(self,save):
         df=pd.concat(map(self.fitOne,self.gridH),1,keys=self.gridH)
         df.columns.names=['h','stat']
@@ -332,12 +361,13 @@ class HMM:
         if n!=N:
             Y=Binomial.sampling(N=N,n=n)
             E=pd.DataFrame(E.values.dot(Y.T.values),index=E.index,columns=Y.index)
-        index = pd.Series(range(E.shape[0]), E.index)
-        CDEidx = cd.applymap(lambda x: index.loc[x])
+        index = pd.Series(range(E.shape[0]), E.index).to_dict()
+        CDEidx = cd.applymap(lambda x: index[x])
         if saveCDE:
             E.to_pickle(path + 'E.df')
             CDEidx.to_pickle(path + 'CDEidx.df')
         return CDEidx,E
+
 
     @staticmethod
     def Powers(CD):
@@ -363,3 +393,32 @@ class HMM:
 
 def precomputeHelper(args):
     HMM.precomputeTransitions(args)
+
+
+def likelihoodsN(CD, rangeN, n=200, minAF=0.01, k=2000):
+    print 'Performing grid search on N=',rangeN
+    cd=utl.polymorphic(CD,index=False,minAF=minAF)
+    I=np.random.choice(cd.shape[0],k)
+    a=HMM(CD=cd.iloc[I],gridH=[0.5],verbose=-1).fitN(rangeN=rangeN,n=n).sort_index(1).mean(0).rename('Likelihood')
+    a.index.name='N'
+    return a
+def estimateN(CD,Nt=False,Nc=False,Nr=False,name='',rangeN=None):
+    if Nc:
+        return CD.groupby(level='CHROM').apply(lambda x: estimateN(x,rangeN=rangeN,Nt=Nt,Nr=Nr,name=name+'Chromosome {} '.format(x.name)))
+    if Nr:
+        return CD.groupby(level='REP',axis=1).apply(lambda x: estimateN(x,rangeN=rangeN,Nt=Nt,name=name+'Replicate {} '.format(x.name)))
+    if Nt:
+        gens=sorted(map(int,CD.columns.get_level_values('GEN').unique()))
+        a=pd.concat([estimateN(CD.loc[:,pd.IndexSlice[:,[i,j]]],rangeN=rangeN, name=name+'Between F{}-F{} '.format(i,j)) for i,j in zip(gens[:-1],gens[1:])],1,keys=gens[1:])
+        return pd.DataFrame(a)
+    if name is not None: print  '\nEstimating N for',name
+    if rangeN is None:
+        a=likelihoodsN(CD, rangeN=10 ** np.arange(2, 7))
+        print a
+        N=a.idxmax()
+        rangeN=np.append(np.linspace(N/10,N,10),np.linspace(N,N*10,10)[1:])
+        b=likelihoodsN(CD, rangeN=rangeN);
+        b.loc[a.idxmax()]=a.max();b.sort_index(inplace=True)
+    else:
+        b=likelihoodsN(CD, rangeN=rangeN);
+    return b
