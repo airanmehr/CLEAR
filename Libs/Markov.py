@@ -4,7 +4,7 @@ Copyleft Apr 11, 2016 Arya Iranmehr, PhD Student, Bafna Lab, UC San Diego,  Emai
 import numpy as np;
 from numba import guvectorize
 
-import Utils.Util as utl
+import UTILS.Util as utl
 np.set_printoptions(linewidth=40, precision=5, suppress=True)
 import pandas as pd;
 pd.options.display.max_rows = 20;
@@ -152,7 +152,7 @@ class HMM:
             self.CD,self.E=HMM.precomputeCDandEmissions(CD=self._CD, n=self.Ns, N=self.n,path=path,loadCDE=loadCDE,saveCDE=saveCDE ,verbose=self.verbose)
         R=self._CD.columns.get_level_values('REP').unique()
         self.powers = pd.Series([pd.Series(self._CD[r].columns.get_level_values('GEN').unique()).diff().values[1:] for r in R],index=R)
-        self.setStepS()
+        # self.setStepS()
         if self.transitionsPath is None:
             if self.path is not None:
                 self.transitionsPath=self.path+'T/';utl.mkdir(self.transitionsPath)
@@ -177,7 +177,11 @@ class HMM:
         except:
             s=(int(s.split('.')[0])+1)*10**(int(s.split('+')[1]))
         return s
-    def likelihood(self,s,CD):
+    def bruteForceLikelihoods(self,S=None):
+        if S is None:S=np.arange(-self.maxS, self.maxS + 1e-10, self.stepS)
+        return [self.likelihood(s, None, h) for h in self.gridH for s in S]
+
+    def likelihood(self,s,CD,h=None):
         """
         Args: (it's more convenient for multiprocessing)
             args: a list of [R,s,h].
@@ -188,6 +192,8 @@ class HMM:
         Returns:
             a series containing likelihood of timeseries for the specific values of s and h.
         """
+        if h is not None: self.h=h
+        if CD==None: CD=self.CD
         try:
             if not s: return self.likes_null
         except: pass
@@ -383,7 +389,6 @@ class HMM:
         CD, sh, N, n, path,powers,verbose=args
         s,h=sh
         if CD is not None:powers=HMM.Powers(CD)
-
         Tn=Markov.Powers(Markov.computeTransition(s, N, n, h=h).fillna(0),powers)
         if verbose>0:
             print 'Computing Transition for s={}, h={}, N={}, n={}'.format( s,h,N,n)
@@ -395,21 +400,42 @@ def precomputeHelper(args):
     HMM.precomputeTransitions(args)
 
 
-def likelihoodsN(CD, rangeN, n=200, minAF=0.01, k=2000):
+def likelihoodsN(CD, rangeN, n=200, minAF=0.01, numSNPs=2000,removeFixed=True):
     print 'Performing grid search on N=',rangeN
-    cd=utl.polymorphic(CD,index=False,minAF=minAF)
-    I=np.random.choice(cd.shape[0],k)
-    a=HMM(CD=cd.iloc[I],gridH=[0.5],verbose=-1).fitN(rangeN=rangeN,n=n).sort_index(1).mean(0).rename('Likelihood')
+    if removeFixed:
+        cd=utl.polymorphic(CD,index=False,minAF=minAF)
+    else:
+        cd=CD
+    if numSNPs >0:
+        cd=cd.iloc[np.random.choice(cd.shape[0],numSNPs)]
+    a=HMM(CD=cd,gridH=[0.5],verbose=-1).fitN(rangeN=rangeN,n=n).sort_index(1).mean(0).rename('Likelihood')
     a.index.name='N'
     return a
-def estimateN(CD,Nt=False,Nc=False,Nr=False,name='',rangeN=None):
+def estimateNtHelper(args):
+    cd, rangeN, name=args
+    return estimateN(cd, rangeN=rangeN, name=name,numSNPs=-1)
+
+def estimateN(CD,Nt=False,Nc=False,Nr=False,name='',rangeN=None,numSNPs=2000,nProc=1,removeFixed=True):
     if Nc:
         return CD.groupby(level='CHROM').apply(lambda x: estimateN(x,rangeN=rangeN,Nt=Nt,Nr=Nr,name=name+'Chromosome {} '.format(x.name)))
     if Nr:
         return CD.groupby(level='REP',axis=1).apply(lambda x: estimateN(x,rangeN=rangeN,Nt=Nt,name=name+'Replicate {} '.format(x.name)))
     if Nt:
         gens=sorted(map(int,CD.columns.get_level_values('GEN').unique()))
-        a=pd.concat([estimateN(CD.loc[:,pd.IndexSlice[:,[i,j]]],rangeN=rangeN, name=name+'Between F{}-F{} '.format(i,j)) for i,j in zip(gens[:-1],gens[1:])],1,keys=gens[1:])
+        X = CD.xs('C', 1, 2) / CD.xs('D', 1, 2)
+        polyAllReps= lambda (t1,t2):utl.polymorphix(X.loc[:, pd.IndexSlice[:, [t1,t2]]], MAF=0.01, index=True).mean(1) == 1
+        a=[]
+        for i, j in zip(gens[:-1], gens[1:]):
+            namet=name + 'Between F{}-F{} '.format(i, j)
+            cd=CD.loc[ polyAllReps((i,j))].loc[:, pd.IndexSlice[:, [i, j]]]
+            cd = cd.iloc[np.random.choice(cd.shape[0], numSNPs)].sort_index()
+            if nProc==1:
+                a+=[estimateN(cd, rangeN=rangeN, name=namet)]
+            else:
+                from multiprocessing import Pool
+                args=[(cd,[N],namet) for N in rangeN]
+                a+=[pd.concat(Pool(nProc).map(estimateNtHelper,args))]
+        a=pd.concat(a,1,keys=gens[1:])
         return pd.DataFrame(a)
     if name is not None: print  '\nEstimating N for',name
     if rangeN is None:
@@ -417,8 +443,8 @@ def estimateN(CD,Nt=False,Nc=False,Nr=False,name='',rangeN=None):
         print a
         N=a.idxmax()
         rangeN=np.append(np.linspace(N/10,N,10),np.linspace(N,N*10,10)[1:])
-        b=likelihoodsN(CD, rangeN=rangeN);
+        b=likelihoodsN(CD, rangeN=rangeN,numSNPs=numSNPs);
         b.loc[a.idxmax()]=a.max();b.sort_index(inplace=True)
     else:
-        b=likelihoodsN(CD, rangeN=rangeN);
+        b=likelihoodsN(CD, rangeN=rangeN,numSNPs=numSNPs,removeFixed=removeFixed);
     return b
