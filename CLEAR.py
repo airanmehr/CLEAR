@@ -53,6 +53,7 @@ if __name__ == '__main__':
     N=a.idxmax()
     a=a.reset_index();a.columns=['N','Likelihood'];print a
     print  'Maximum Likelihood of N=',N
+    print CD
     HMM=mkv.HMM(eps=1e-2,CD=CD,gridH=[0.5],N=N,n=200,saveCDE=False,loadCDE=False,verbose=1,maxS=None)
     a= HMM.fit(False)
     print a
