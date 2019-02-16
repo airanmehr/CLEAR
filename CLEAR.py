@@ -7,8 +7,9 @@ import pandas as pd;
 import seaborn as sns
 import pylab as plt;
 import matplotlib as mpl
-import UTILS as utl
+from UTILS.VCF import VCF,SynchronizedFile
 import UTILS.Plots as pplt
+from UTILS.Genome import scan
 # try:
 import Libs.Markov as mkv
 # except:
@@ -40,9 +41,9 @@ if __name__ == '__main__':
     if options.pandasFile is not None:
         CD=pd.read_pickle(options.pandasFile)
     elif options.syncFile is not None:
-        CD=utl.VCF.SynchronizedFile.load(options.syncFile)
+        CD=SynchronizedFile.load(options.syncFile)
     elif options.vcfgz is not None:
-        CD=utl.VCF.VCF.loadCD(options.vcfgz)
+        CD=VCF.loadCD(options.vcfgz)
     else:
         print 'Invalid input'
         exit()
@@ -67,6 +68,6 @@ if __name__ == '__main__':
         a=f(a[0.5])
         fig,axes=plt.subplots(2,1,sharex=True,dpi=200)
         pplt.Manhattan(a.rename('$H$'),top_k=10,axes=[axes[0]])
-        pplt.Manhattan(utl.Genome.scan.Genome(a).rename(r'$\mathcal{H}$'),top_k=3,axes=[axes[1]])
+        pplt.Manhattan(scan.Genome(a).rename(r'$\mathcal{H}$'),top_k=3,axes=[axes[1]])
         plt.show()
 
