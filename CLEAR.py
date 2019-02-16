@@ -7,12 +7,12 @@ import pandas as pd;
 import seaborn as sns
 import pylab as plt;
 import matplotlib as mpl
-import Utils.Util as utl
-import Utils.Plots as pplt
-try:
-    import Libs.Markov as mkv
-except:
-    import CLEAR.Libs.Markov as mkv
+import UTILS.Util as utl
+import UTILS.Plots as pplt
+# try:
+import Libs.Markov as mkv
+# except:
+#     import CLEAR.Libs.Markov as mkv
 sys.path.insert(1,os.getcwd())
 np.set_printoptions(linewidth=200, precision=5, suppress=True)
 pd.options.display.max_rows = 20;
@@ -36,8 +36,6 @@ parser.add_option( '--out',default=None, action="store", dest="out", help="outpu
 
 options, args = parser.parse_args()
 
-
-
 if __name__ == '__main__':
     if options.pandasFile is not None:
         CD=pd.read_pickle(options.pandasFile)
@@ -48,10 +46,10 @@ if __name__ == '__main__':
     else:
         print 'Invalid input'
         exit()
-<<<<<<< HEAD
+# <<<<<<< HEAD
     n=200
     if options.N:
-	N=int(options.N)
+	    N=int(options.N)
     else:
     	a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
     	N=a.idxmax()
@@ -59,15 +57,15 @@ if __name__ == '__main__':
     	print  'Maximum Likelihood of N=',N
  	
     HMM=mkv.HMM(eps=1e-2,CD=CD,gridH=[0.5],N=N,n=n,saveCDE=False,loadCDE=False,verbose=1,maxS=None)
-=======
-
-    a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
-    N=a.idxmax()
-    a=a.reset_index();a.columns=['N','Likelihood'];print a
-    print  'Maximum Likelihood of N=',N
-    print CD
-    HMM=mkv.HMM(eps=1e-2,CD=CD,gridH=[0.5],N=N,n=200,saveCDE=False,loadCDE=False,verbose=1,maxS=None)
->>>>>>> tmp
+# =======
+#
+#     a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
+#     N=a.idxmax()
+#     a=a.reset_index();a.columns=['N','Likelihood'];print a
+#     print  'Maximum Likelihood of N=',N
+#     print CD
+#     HMM=mkv.HMM(eps=1e-2,CD=CD,gridH=[0.5],N=N,n=200,saveCDE=False,loadCDE=False,verbose=1,maxS=None)
+# >>>>>>> tmp
     a= HMM.fit(False)
     print a
     if options.out is not None:
