@@ -7,7 +7,7 @@ import pandas as pd;
 import seaborn as sns
 import pylab as plt;
 import matplotlib as mpl
-import UTILS.Util as utl
+import UTILS as utl
 import UTILS.Plots as pplt
 # try:
 import Libs.Markov as mkv
@@ -40,32 +40,22 @@ if __name__ == '__main__':
     if options.pandasFile is not None:
         CD=pd.read_pickle(options.pandasFile)
     elif options.syncFile is not None:
-        CD=utl.SynchronizedFile.load(options.syncFile)
+        CD=utl.VCF.SynchronizedFile.load(options.syncFile)
     elif options.vcfgz is not None:
-        CD=utl.VCF.loadCD(options.vcfgz)
+        CD=utl.VCF.VCF.loadCD(options.vcfgz)
     else:
         print 'Invalid input'
         exit()
-# <<<<<<< HEAD
     n=200
-    if options.N:
-	    N=int(options.N)
-    else:
-    	a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
-    	N=a.idxmax()
-    	a=a.reset_index();a.columns=['N','Likelihood'];print a
-    	print  'Maximum Likelihood of N=',N
- 	
-    HMM=mkv.HMM(eps=1e-2,CD=CD,gridH=[0.5],N=N,n=n,saveCDE=False,loadCDE=False,verbose=1,maxS=None)
-# =======
-#
-#     a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
-#     N=a.idxmax()
-#     a=a.reset_index();a.columns=['N','Likelihood'];print a
-#     print  'Maximum Likelihood of N=',N
-#     print CD
-#     HMM=mkv.HMM(eps=1e-2,CD=CD,gridH=[0.5],N=N,n=200,saveCDE=False,loadCDE=False,verbose=1,maxS=None)
-# >>>>>>> tmp
+    # if options.N:
+    #     N=int(options.N)
+    # else:
+    #     a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
+    #     N=a.idxmax()
+    #     a=a.reset_index();a.columns=['N','Likelihood'];print a
+    #     print 'Maximum Likelihood of N=',N
+    N=70
+    HMM = mkv.HMM(eps=1e-2, CD=CD, gridH=[0.5], N=N, n=n  , saveCDE=False, loadCDE=False, verbose=1, maxS=None)
     a= HMM.fit(False)
     print a
     if options.out is not None:
@@ -77,6 +67,6 @@ if __name__ == '__main__':
         a=f(a[0.5])
         fig,axes=plt.subplots(2,1,sharex=True,dpi=200)
         pplt.Manhattan(a.rename('$H$'),top_k=10,axes=[axes[0]])
-        pplt.Manhattan(utl.scanGenome(a).rename(r'$\mathcal{H}$'),top_k=3,axes=[axes[1]])
+        pplt.Manhattan(utl.Genome.scan.Genome(a).rename(r'$\mathcal{H}$'),top_k=3,axes=[axes[1]])
         plt.show()
 

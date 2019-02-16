@@ -4,7 +4,7 @@ Copyleft Apr 11, 2016 Arya Iranmehr, PhD Student, Bafna Lab, UC San Diego,  Emai
 import numpy as np;
 from numba import guvectorize
 
-import UTILS.Util as utl
+import UTILS as utl
 np.set_printoptions(linewidth=40, precision=5, suppress=True)
 import pandas as pd;
 pd.options.display.max_rows = 20;
@@ -14,6 +14,9 @@ import os;            home=os.path.expanduser('~') +'/'
 import sys;sys.path.insert(1,'/home/arya/workspace/bio/')
 import scipy as sc
 EPS=1e-320
+from UTILS.EE import EE
+from UTILS.Vectorized import vectorizedLog
+
 @guvectorize(['void(float64[:], float64[:], float64[:,:])'],'(n),()->(n,n)')
 def computeTransition(nu_t,N,T):
     N=int(N[0])
@@ -56,7 +59,7 @@ class Markov:
         if not s:
             T=TNeutral
         else:
-            Nt=pd.Series(map(lambda x: 2*n*max(min(utl.fx(x, s, h=h), 1.), 0.), nu0),index=nu0).rename('Nt').round(int(np.ceil(np.log10(2*n))))
+            Nt=pd.Series(map(lambda x: 2*n*max(min(EE.fx(x, s, h=h), 1.), 0.), nu0),index=nu0).rename('Nt').round(int(np.ceil(np.log10(2*n))))
             a=pd.concat([Nt,Nt.apply(np.floor).rename('low').astype(int),Nt.apply(np.ceil).rename('up').astype(int)],1)
             T=a.groupby(level=0).apply(lambda x: getRow(x.loc[x.name]))
         return Markov.normalize(T)
@@ -152,7 +155,7 @@ class HMM:
             self.CD,self.E=HMM.precomputeCDandEmissions(CD=self._CD, n=self.Ns, N=self.n,path=path,loadCDE=loadCDE,saveCDE=saveCDE ,verbose=self.verbose)
         R=self._CD.columns.get_level_values('REP').unique()
         self.powers = pd.Series([pd.Series(self._CD[r].columns.get_level_values('GEN').unique()).diff().values[1:] for r in R],index=R)
-        # self.setStepS()
+        self.setStepS()
         if self.transitionsPath is None:
             if self.path is not None:
                 self.transitionsPath=self.path+'T/';utl.mkdir(self.transitionsPath)
@@ -170,7 +173,7 @@ class HMM:
         freq=lambda x: x.xs('C',level='READ',axis=1).sum(1)/x.xs('D',level='READ',axis=1).sum(1)
         x=self._CD.groupby( level='GEN',axis=1).apply(lambda x: freq(x)).sort_index(1)
         x[(x==1)|(x==0)]=None; x=x.dropna()
-        s= (2./(x.columns[-1]-x.columns[0])*(utl.logit(x.iloc[:,-1])-utl.logit(x.iloc[:,0])).abs().replace(np.inf,None).dropna()).max()
+        s= (2./(x.columns[-1]-x.columns[0])*(EE.logit(x.iloc[:,-1])-EE.logit(x.iloc[:,0])).abs().replace(np.inf,None).dropna()).max()
         s='{:e}'.format(s)
         try:
             s=(int(s.split('.')[0])+1)*10**(-int(s.split('-')[1]))
@@ -193,7 +196,7 @@ class HMM:
             a series containing likelihood of timeseries for the specific values of s and h.
         """
         if h is not None: self.h=h
-        if CD==None: CD=self.CD
+        if CD is None: CD=self.CD
         try:
             if not s: return self.likes_null
         except: pass
@@ -234,7 +237,7 @@ class HMM:
             alpha = E.iloc[df.loc[(rep, startGen)]].values
             for step, power in zip(range(1, df.shape[0]), powers[rep]):
                 alpha = alpha.dot(T.loc[power].values) * E.values[df.loc[rep].iloc[step].values]
-            likes += utl.vectorizedLog(alpha.mean(1)) #it should be here
+            likes += vectorizedLog(alpha.mean(1)) #it should be here
             n+=1
         return likes/n
 
@@ -246,7 +249,7 @@ class HMM:
             alpha = E.iloc[df.loc[(rep, 0)]].values
             for step, power in zip(range(1, df.shape[0]), powers[rep]):
                 alpha = alpha.dot(T.loc[power].values) * E.values[df.loc[rep].iloc[step].values]
-            dfl+=[utl.vectorizedLog(alpha.mean(1))]
+            dfl+=[vectorizedLog(alpha.mean(1))]
         df= pd.DataFrame(dfl,columns=CD.index)
         return df.apply(lambda x: x.sort_values()[1:].mean())
 
