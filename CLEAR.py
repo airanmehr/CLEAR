@@ -53,11 +53,22 @@ if __name__ == '__main__':
     else:
         a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
         N=a.idxmax()
-        a=a.reset_index();a.columns=['N','Likelihood'];print a
+        a=a.reset_index();
+        if a.shape[1]==2:a.columns=['N','Likelihood']
+        print a
         print 'Maximum Likelihood of N=',N
-    HMM = mkv.HMM(eps=1e-2, CD=CD, gridH=[0.5], N=N, n=n  , saveCDE=False, loadCDE=False, verbose=1, maxS=None)
-    a= HMM.fit(False)
-    print a
+    if options.Nr:
+        a=[]
+        for r in N.index:
+            print '*'*30, 'Replicate',r
+            HMM = mkv.HMM(eps=1e-2, CD=CD[[r]], gridH=[0.5], N=N.loc[r], n=n, saveCDE=False, loadCDE=False, verbose=1, maxS=None)
+            a += [HMM.fit(False)]
+        a=pd.concat(a,keys=N.index)
+    else:
+        HMM = mkv.HMM(eps=1e-2, CD=CD, gridH=[0.5], N=N, n=n  , saveCDE=False, loadCDE=False, verbose=1, maxS=None)
+        a= HMM.fit(False)
+
+
     if options.out is not None:
         a.to_pickle(options.out)
         print 'Output is saved in pandas dataframe in {}.'.format(options.out)
