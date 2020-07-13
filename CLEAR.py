@@ -46,15 +46,16 @@ if __name__ == '__main__':
         print('Invalid input')
         exit()
     n=200
-    if options.N:
-        N=int(options.N)
-    else:
-        a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
-        N=a.idxmax()
-        a=a.reset_index();
-        if a.shape[1]==2:a.columns=['N','Likelihood']
-        print(a)
-        print( 'Maximum Likelihood of N=',N)
+    # if options.N:
+    #     N=int(options.N)
+    # else:
+    #     a= mkv.estimateN(CD,Nt=options.Nt,Nc=options.Nc, Nr=options.Nr)
+    #     N=a.idxmax()
+    #     a=a.reset_index();
+    #     if a.shape[1]==2:a.columns=['N','Likelihood']
+    #     print(a)
+    #     print( 'Maximum Likelihood of N=',N)
+    N=200
     if options.Nr:
         a=[]
         for r in N.index:
