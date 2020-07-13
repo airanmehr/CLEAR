@@ -7,9 +7,7 @@ import pandas as pd;
 import seaborn as sns
 import pylab as plt;
 import matplotlib as mpl
-from UTILS.VCF import VCF,SynchronizedFile
-import UTILS.Plots as pplt
-from UTILS.Genome import scan
+from Libs.Utils import VCF,SynchronizedFile,scan,Manhattan
 # try:
 import Libs.Markov as mkv
 # except:
@@ -45,7 +43,7 @@ if __name__ == '__main__':
     elif options.vcfgz is not None:
         CD=VCF.loadCD(options.vcfgz)
     else:
-        print 'Invalid input'
+        print('Invalid input')
         exit()
     n=200
     if options.N:
@@ -55,12 +53,12 @@ if __name__ == '__main__':
         N=a.idxmax()
         a=a.reset_index();
         if a.shape[1]==2:a.columns=['N','Likelihood']
-        print a
-        print 'Maximum Likelihood of N=',N
+        print(a)
+        print( 'Maximum Likelihood of N=',N)
     if options.Nr:
         a=[]
         for r in N.index:
-            print '*'*30, 'Replicate',r
+            print( '*'*30, 'Replicate',r)
             HMM = mkv.HMM(eps=1e-2, CD=CD[[r]], gridH=[0.5], N=N.loc[r], n=n, saveCDE=False, loadCDE=False, verbose=1, maxS=None)
             a += [HMM.fit(False)]
         a=pd.concat(a,keys=N.index)
@@ -71,13 +69,13 @@ if __name__ == '__main__':
 
     if options.out is not None:
         a.to_pickle(options.out)
-        print 'Output is saved in pandas dataframe in {}.'.format(options.out)
+        print( 'Output is saved in pandas dataframe in {}.'.format(options.out))
 
     if options.plot:
         f=lambda x: x.alt-x.null
         a=f(a[0.5])
         fig,axes=plt.subplots(2,1,sharex=True,dpi=200)
-        pplt.Manhattan(a.rename('$H$'),top_k=10,axes=[axes[0]])
-        pplt.Manhattan(scan.Genome(a).rename(r'$\mathcal{H}$'),top_k=3,axes=[axes[1]])
+        Manhattan(a.rename('$H$'),top_k=10,axes=[axes[0]])
+        Manhattan(scan.Genome(a).rename(r'$\mathcal{H}$'),top_k=3,axes=[axes[1]])
         plt.show()
 

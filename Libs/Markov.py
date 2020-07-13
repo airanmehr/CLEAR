@@ -4,7 +4,6 @@ Copyleft Apr 11, 2016 Arya Iranmehr, PhD Student, Bafna Lab, UC San Diego,  Emai
 import numpy as np;
 from numba import guvectorize
 
-import UTILS as utl
 np.set_printoptions(linewidth=40, precision=5, suppress=True)
 import pandas as pd;
 pd.options.display.max_rows = 20;
@@ -12,10 +11,13 @@ pd.options.display.expand_frame_repr = False;
 pd.options.display.max_columns = 20
 import os;            home=os.path.expanduser('~') +'/'
 import sys;sys.path.insert(1,'/home/arya/workspace/bio/')
-import scipy as sc
+import scipy.misc
 EPS=1e-320
-from UTILS.EE import EE
-from UTILS.Vectorized import vectorizedLog
+from Libs.Utils import EE
+from Libs.Utils import vectorizedLog
+import  Libs.Utils as utl
+
+
 
 @guvectorize(['void(float64[:], float64[:], float64[:,:])'],'(n),()->(n,n)')
 def computeTransition(nu_t,N,T):
@@ -29,6 +31,21 @@ def computeTransition(nu_t,N,T):
             T[i,j]= np.exp(fact[-1] - fact[jj] - fact[2*N-jj]+ lognu_t[i]*jj +  lognu_tbar[i]*(2.*N-jj))
         if not nu_t[i]: T[i, 0] = 1;
         if nu_t[i] == 1: T[i, -1] = 1;
+
+
+# def computeTransition(N,T):
+#     N=int(N[0])
+#     fact= np.append([0],np.log(np.arange(1,2*N+1)).cumsum())
+#     nu_t=np.zeros_like(T)
+#     lognu_t=np.log(nu_t+EPS)
+#     lognu_tbar=np.log(1-nu_t+EPS)
+#     for i in range(T.shape[0]):
+#         for j in range(T.shape[0]):
+#             jj=int(np.round(nu_t[j]*2*N))
+#             T[i,j]= np.exp(fact[-1] - fact[jj] - fact[2*N-jj]+ lognu_t[i]*jj +  lognu_tbar[i]*(2.*N-jj))
+#         if not nu_t[i]: T[i, 0] = 1;
+#         if nu_t[i] == 1: T[i, -1] = 1;
+#     return nu_t
 
 class Markov:
     @staticmethod
@@ -125,7 +142,7 @@ class Binomial:
     @staticmethod
     def likelihood(cd, nu):
         c, d = cd
-        p = sc.misc.comb(d, c) * (nu ** c) * ((1 - nu) ** (d - c));
+        p = scipy.special.comb(d, c) * (nu ** c) * ((1 - nu) ** (d - c));
         return p
 
 class HMM:
@@ -151,7 +168,7 @@ class HMM:
             path=self.CDfname.replace('.df','.')
 
         if self.Ns is not None and self.n is not None:
-            print self.Ns,self.n
+            print(self.Ns,self.n)
             self.CD,self.E=HMM.precomputeCDandEmissions(CD=self._CD, n=self.Ns, N=self.n,path=path,loadCDE=loadCDE,saveCDE=saveCDE ,verbose=self.verbose)
         R=self._CD.columns.get_level_values('REP').unique()
         self.powers = pd.Series([pd.Series(self._CD[r].columns.get_level_values('GEN').unique()).diff().values[1:] for r in R],index=R)
@@ -202,7 +219,7 @@ class HMM:
         except: pass
         if not CD.shape[0]: return pd.Series()
         if s==0:s=int(0)
-        if self.verbose>0:print 'Computing for {} SNPs for s={} h={}'.format(CD.shape[0], s, self.h);sys.stdout.flush()
+        if self.verbose>0:print('Computing for {} SNPs for s={} h={}'.format(CD.shape[0], s, self.h));sys.stdout.flush()
         try:
             T = pd.read_pickle(self.transitionsPath + 'N{}.S{:E}.H{:E}.df'.format(self.N,s, self.h))
         except:
@@ -210,13 +227,13 @@ class HMM:
         args = map(lambda x: (x, self.E, T, self.powers), utl.batch(CD, self.batchSize));
         f=(HMM.likelihoodBatch,HMM.likelihoodBatchFilterRep)[self.filterOutlierReplicate>0]
         likes = pd.concat(map(f, args)).rename((s, self.h))
-        if self.verbose>1: print pd.DataFrame(likes)
+        if self.verbose>1: print(pd.DataFrame(likes))
         return likes
 
     def likelihoodN(self,N,n):
         if n>N: n=N
         if self.verbose>0:
-            print 'Computing for N={}, n={}'.format(N,n);
+            print('Computing for N={}, n={}'.format(N,n))
         try:
             T = pd.read_pickle(self.transitionsPath + 'N{}.df'.format(N))
             T=pd.Series([T],index=[10])
@@ -299,7 +316,6 @@ class HMM:
         return df
 
     def maximumLikelihood(self, scores,save):
-        print 'computing scores....'
         a = scores.groupby(level=0, axis=1).apply(lambda x:x[(x.name, 'alt')] - x[(x.name, 'null')])
         h = a.abs().apply(lambda x: x.idxmax(), axis=1)
         sh = scores.groupby(level=[0, 1]).apply(lambda x: x[h.loc[x.name]].s.values[0])
@@ -337,7 +353,6 @@ class HMM:
 
     def computeTransitions(self,numProc=8):
         utl.mkdir(self.transitionsPath)
-        print 'Computing Transitions for Real Data...'
         args=map(lambda sh: (self.CD,sh,self.N,self.n,self.transitionsPath,None,self.verbose), self.SHgrid(gridH=self.gridH))
         # Pool(8).\
         map(precomputeHelper,args)
@@ -357,7 +372,7 @@ class HMM:
             except:
                 pass
         if verbose>0:
-            print 'Precomputing CD (C,D)=(Derived count,total Count) and corresponding emission probabilities...',CD.shape
+            print('Precomputing CD (C,D)=(Derived count,total Count) and corresponding emission probabilities...',CD.shape)
         nu=pd.Series(np.arange(0, 1.0000001, 1./(2*n)), index=np.arange(0, 1.00001, 1./(2*n)))
         c = CD.xs('C', level='READ', axis=1)
         d = CD.xs('D', level='READ', axis=1)
@@ -394,7 +409,7 @@ class HMM:
         if CD is not None:powers=HMM.Powers(CD)
         Tn=Markov.Powers(Markov.computeTransition(s, N, n, h=h).fillna(0),powers)
         if verbose>0:
-            print 'Computing Transition for s={}, h={}, N={}, n={}'.format( s,h,N,n)
+            print('Computing Transition for s={}, h={}, N={}, n={}'.format( s,h,N,n))
         if path is not None:
             Tn.to_pickle('{}N{}.S{:E}.H{:E}.df'.format(path, N,s, h))
         return Tn
@@ -404,7 +419,7 @@ def precomputeHelper(args):
 
 
 def likelihoodsN(CD, rangeN, n=200, minAF=0.01, numSNPs=2000,removeFixed=True):
-    print 'Performing grid search on N=',rangeN
+    print('Performing grid search on N=',rangeN)
     if removeFixed:
         cd=utl.polymorphic(CD,index=False,minAF=minAF)
     else:
@@ -426,7 +441,8 @@ def estimateN(CD,Nt=False,Nc=False,Nr=False,name='',rangeN=None,numSNPs=2000,nPr
     if Nt:
         gens=sorted(map(int,CD.columns.get_level_values('GEN').unique()))
         X = CD.xs('C', 1, 2) / CD.xs('D', 1, 2)
-        polyAllReps= lambda (t1,t2):utl.polymorphix(X.loc[:, pd.IndexSlice[:, [t1,t2]]], MAF=0.01, index=True).mean(1) == 1
+        def polyAllReps(t1,t2):
+            return utl.polymorphix(X.loc[:, pd.IndexSlice[:, [t1,t2]]], MAF=0.01, index=True).mean(1) == 1
         a=[]
         for i, j in zip(gens[:-1], gens[1:]):
             namet=name + 'Between F{}-F{} '.format(i, j)
@@ -440,10 +456,11 @@ def estimateN(CD,Nt=False,Nc=False,Nr=False,name='',rangeN=None,numSNPs=2000,nPr
                 a+=[pd.concat(Pool(nProc).map(estimateNtHelper,args))]
         a=pd.concat(a,1,keys=gens[1:])
         return pd.DataFrame(a)
-    if name is not None: print  '\nEstimating N for',name
+    if name is not None:
+        print( '\nEstimating N for',name)
     if rangeN is None:
         a=likelihoodsN(CD, rangeN=10 ** np.arange(2, 7))
-        print a
+        print(a)
         N=a.idxmax()
         rangeN=np.append(np.linspace(N/10,N,10),np.linspace(N,N*10,10)[1:])
         b=likelihoodsN(CD, rangeN=rangeN,numSNPs=numSNPs);
