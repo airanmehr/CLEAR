@@ -41,7 +41,7 @@ if __name__ == '__main__':
     elif options.syncFile is not None:
         CD=SynchronizedFile.load(options.syncFile)
     elif options.vcfgzFile is not None:
-        CD=VCF.loadCD(options.vcfgz)
+        CD=VCF.loadCD(options.vcfgzFile)
     else:
         print('Invalid input')
         exit()
