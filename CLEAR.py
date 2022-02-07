@@ -40,7 +40,7 @@ if __name__ == '__main__':
         CD=pd.read_pickle(options.pandasFile)
     elif options.syncFile is not None:
         CD=SynchronizedFile.load(options.syncFile)
-    elif options.vcfgz is not None:
+    elif options.vcfgzFile is not None:
         CD=VCF.loadCD(options.vcfgz)
     else:
         print('Invalid input')
